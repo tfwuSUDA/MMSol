@@ -47,18 +47,6 @@ def check_folder(save_dir):
     return save_dir
 
 
-def seed_everything(seed):
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    random.seed(seed) 
-    np.random.seed(seed) 
-    torch.manual_seed(seed) 
-    torch.cuda.manual_seed(seed) 
-    torch.cuda.manual_seed_all(seed) 
-    torch.backends.cudnn.deterministic = True 
-    torch.backends.cudnn.benchmark = False 
-    torch.backends.cudnn.enabled = True 
-
-
 def read_fasta_to_dataframe(file_path1):
     records = SeqIO.to_dict(SeqIO.parse(file_path1, "fasta"))
 
@@ -127,8 +115,6 @@ class Ecoli(MMSol_Dataset):
         if not os.path.exists(self.save_path+'record'):
             os.makedirs(self.save_path+'record')
 
-        seed_everything(self.seed) 
-
 
     def train_total(self):
         cuda_available = torch.cuda.is_available()
@@ -159,13 +145,13 @@ class Ecoli(MMSol_Dataset):
                                   num_workers=self.num_workers, collate_fn=collate_fn)
                 
         # -----Loss-----
-        total_labels = train_dataset.get_data_labels()  # 假设这是一个包含标签的张量或列表
+        total_labels = train_dataset.get_data_labels()  
         total_samples = len(total_labels)
-        num_pos_samples = (total_labels == 1).sum().item()  # 如果是Tensor，可以直接使用.sum()
+        num_pos_samples = (total_labels == 1).sum().item()  
         num_neg_samples = (total_labels == 0).sum().item()
         
-        pos_weight = total_samples / (2 * num_pos_samples)  # 反向频率权重
-        neg_weight = total_samples / (2 * num_neg_samples)  # 反向频率权重
+        pos_weight = total_samples / (2 * num_pos_samples)  
+        neg_weight = total_samples / (2 * num_neg_samples)  
         print(f'pos_weight: {pos_weight}, neg_weight: {neg_weight}')
         weights = torch.tensor([neg_weight, pos_weight]).to(device)
         criterion = nn.NLLLoss(weight=weights).to(device) 
@@ -222,9 +208,8 @@ class Ecoli(MMSol_Dataset):
 
             train_acc = corrects_epoch / total_epoch
             print(f"Train Accuracy: {train_acc:.5f}")
-            # print(f'outputs:{outputs}, labels:{labels}')  
             train_acc_ls.append(train_acc)
-            # test_accuracy, test_f1, test_auc, test_precision, test_recall, test_mcc  = self.test(model=model)
+            
                 
         model_path = os.path.join(self.save_path, f"{epoch}_eSOL.pth")
         torch.save(model, model_path)
@@ -323,7 +308,7 @@ class Ecoli(MMSol_Dataset):
                 print(f"Train Accuracy for fold {fold+1}, Epoch {epoch}: {train_acc:.5f}")
 
                 # -----Validation for current fold-----
-                model.eval()  # switch to evaluation mode
+                model.eval()  
                 val_loss = 0
                 predicted_list = []
                 labels_list = []
@@ -374,22 +359,18 @@ class Ecoli(MMSol_Dataset):
                 print(f"Validation Loss for fold {fold+1}, Epoch {epoch}: {val_loss / len(val_loader):.5f}")
                 print(f"Validation AUC for fold {fold+1}, Epoch {epoch}: {roc_auc:.5f}")
 
-                # 保存对应的 R² 和 RMSE 到 txt 文件
                 metrics_path = os.path.join(self.save_path, f"loss_model_fold_{fold+1}.txt")
                 with open(metrics_path, 'a') as f:
                     f.write(f"Epoch: {epoch} Valid ACC: {val_acc:.5f} Valid AUC: {roc_auc:.5f} Valid Loss: {val_loss} Train Loss: {train_loss}\n")
-
 
                 # Save the model if AUC is improved or if Loss is improved
                 if roc_auc > best_auc:
                     best_auc = roc_auc
                     best_auc_model = model.state_dict()
-                    # 保存模型
                     model_path = os.path.join(self.save_path, f"best_rmse_model_fold_{fold+1}.pth")
                     torch.save(best_auc_model, model_path)
                     print(f"Best AUC model for fold {fold+1} saved.")
 
-                    # 保存对应的 R² 和 RMSE 到 txt 文件
                     metrics_path = os.path.join(self.save_path, f"best_auc_model_fold_{fold+1}.txt")
                     with open(metrics_path, 'w') as f:
                         f.write(f"Epoch: {epoch}\n")
@@ -398,12 +379,11 @@ class Ecoli(MMSol_Dataset):
                 if val_loss / len(val_loader) < best_loss:
                     best_loss = val_loss / len(val_loader)
                     best_loss_model = model.state_dict()
-                    # 保存模型
+
                     model_path = os.path.join(self.save_path, f"best_loss_model_fold_{fold+1}.pth")
                     torch.save(best_loss_model, model_path)
                     print(f"Best Loss model for fold {fold+1} saved.")
 
-                    # 保存对应的 R² 和 RMSE 到 txt 文件
                     metrics_path = os.path.join(self.save_path, f"best_loss_model_fold_{fold+1}.txt")
                     with open(metrics_path, 'w') as f:
                         f.write(f"Epoch: {epoch}\n")
@@ -414,11 +394,22 @@ class Ecoli(MMSol_Dataset):
         cuda_available = torch.cuda.is_available()
         device = torch.device("cuda:0" if cuda_available else "cpu")
 
-        # model = Model()
-        model = torch.load(self.model_path) 
+        # # model = Model()
+        # model = torch.load(self.model_path) 
+        # model = model.to(device)
+        # model.eval()
+
+        # -----SparseGO-----
+        protein2id_mapping = load_mapping(self.protein2id)
+        dG, terms_pairs, proteins_terms_pairs = load_ontology(self.protein2ont, protein2id_mapping)
+        sorted_pairs, level_list, level_number = sort_pairs(
+            proteins_terms_pairs, terms_pairs, dG, protein2id_mapping)
+        layer_connections = pairs_in_layers(sorted_pairs, level_list, level_number)  
+
+        # -----Model Define----- 
+        model = Model(layer_connections=layer_connections)
+        model.load_state_dict(torch.load(self.model_path))  
         model = model.to(device)
-        
-        model.eval()
         
         # -----Dataset-----
         test_dataset = MMSol_Dataset(self.test_dataset, max_pad_len=self.max_pad_len, 
@@ -496,6 +487,6 @@ class Ecoli(MMSol_Dataset):
     
 if __name__ == '__main__':
     my_lib = Ecoli()
-    # my_lib.train_total()
     my_lib.train_cv()
+    # my_lib.train_total()
     # my_lib.test()

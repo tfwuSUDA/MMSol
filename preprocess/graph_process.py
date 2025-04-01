@@ -181,7 +181,7 @@ def h_bonds_process(adjacency_matrix_file, dssp_features_file, output_file, w1, 
 if __name__ == '__main__':
     
     # —————————————————— LPE ——————————————————
-    pdb_dir = './test_lib/EsmFold/train_set'
+    pdb_dir = './data/EsmFold/noise_free/train'
     pdb_files = os.listdir(pdb_dir)
 
     dismatrix_dict = {}
@@ -192,15 +192,15 @@ if __name__ == '__main__':
             id = os.path.splitext(pdb_file)[0]
             dismatrix_dict[id] = dismatrix.astype(np.int16)
 
-    with open('./data/E.coli/nesg_all/nesg_train_all_dismatrix_dict_raw.pkl', 'wb') as f:
+    with open('./data/noise_free/noise_free_train_dismatrix_dict.pkl', 'wb') as f:
         pickle.dump(dismatrix_dict, f)
     
-    process_adj_matrices('./case study/graph/B5L6K6_dismatrix_dict_row.pkl',
-                      './case study/graph/B5L6K6_laplacian_dict.pkl')
+    process_adj_matrices('./data/noise_free/noise_free_train_dismatrix_dict.pkl',
+                      './data/noise_free/noise_free_train_laplacian_dict.pkl')
     
     # —————————————————— DSSP ——————————————————
-    pdb_dir = '/home/dell/disks/xujia/Paper/MyPaper/paper1/test_lib/EsmFold/case_study/B5L6K6/'
-    dssp_dir = '/home/dell/disks/xujia/Paper/MyPaper/paper1/test_lib/DSSP/case_study/B5L6K6/'
+    pdb_dir = './data/EsmFold/noise_free/train/'
+    dssp_dir = './data/DSSP/noise_free/train/'
 
     for filename in os.listdir(pdb_dir):
         if filename.endswith('.pdb'):
@@ -263,21 +263,21 @@ if __name__ == '__main__':
                         'z_ca': z_ca,
                     }
                     
-    with open('./data/soluprot+epsol/soluprot_dssp.pkl', 'wb') as file:
+    with open('./data/DSSP/noise_free/train/train_dssp.pkl', 'wb') as file:
         pickle.dump(features, file)
     
     # —————————————————— Node fea ——————————————————
-    with open('./data/soluprot+epsol/soluprot_dssp.pkl', 'rb') as file:
+    with open('./data/DSSP/noise_free/train/train_dssp.pkl', 'rb') as file:
         data = pickle.load(file)
 
-    fasta_file = './data/soluprot+epsol/SoluProt_fea_new.fasta'
-    output_file = './data/soluprot+epsol/soluprot_node_fea.pkl'
+    fasta_file = './data/noise_free/eSOL_train_cls.fasta'
+    output_file = './data/noise_free/eSOL_edge/train_node_fea.pkl'
     node_fea_process(fasta_file, output_file, data)
 
     # —————————————————— H-bond ——————————————————
-    adjacency_matrix_file = './case study/graph/B5L6K6_laplacian_dict.pkl'
-    dssp_features_file = './case study/graph/B5L6K6_dssp.pkl'
-    output_file = './case study/graph/B5L6K6_LPE_head_5_1.pkl'
+    adjacency_matrix_file = './data/noise_free/noise_free_train_laplacian_dict.pkl'
+    dssp_features_file = './data/DSSP/noise_free/train/train_dssp.pkl'
+    output_file = './data/noise_free/eSOL_edge/train_LPE_5_1.pkl'
     w1 = 5  
     w2 = 1  
     h_bonds_process(adjacency_matrix_file, dssp_features_file, output_file, w1, w2)

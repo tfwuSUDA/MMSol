@@ -74,6 +74,11 @@ def initA(s, rho=0.9):
     return A
 
 def lrt_flip_scheme(pred_softlabels_bar, y_tilde, y_noise, delta1, delta2):
+    '''
+    Label changed
+    If a sample with label_noise marked as 2 is modified, label_noise will be marked as 4
+    If a sample with label_noise marked as 1 is modified, label_noise will be marked as 5
+    '''
     ntrain = pred_softlabels_bar.shape[0]  
     num_class = pred_softlabels_bar.shape[1]  
     
@@ -105,18 +110,6 @@ def lrt_flip_scheme(pred_softlabels_bar, y_tilde, y_noise, delta1, delta2):
     print(f"Total updates: {total_updates}")
 
     return y_noise, y_tilde, clean_softlabels, updated_indices, total_updates
-
-
-def seed_everything(seed):
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    random.seed(seed) 
-    np.random.seed(seed)
-    torch.manual_seed(seed) 
-    torch.cuda.manual_seed(seed) 
-    torch.cuda.manual_seed_all(seed) 
-    torch.backends.cudnn.deterministic = True 
-    torch.backends.cudnn.benchmark = False 
-    torch.backends.cudnn.enabled = True 
 
 
 def read_fasta_to_dataframe(file_path1):
@@ -161,6 +154,10 @@ def read_fasta_to_dataframe(file_path1):
         return df
 
 def reconstruct_fasta(df, train_dataset, output_file):
+    '''
+    Fasta file reconstruction 
+    Updated to the modified dataset
+    '''
     id_to_label = {}
     id_to_label_noise = {}
     for idx in range(len(train_dataset)):
@@ -201,18 +198,16 @@ class Ecoli(MMSol_Dataset):
         self.save_path = args.save_path
         self.weight_decay = args.weight_decay
         self.max_pad_len = args.max_pad_len
-        self.epoch_start = 2 
-        self.every_n_epoch = 1  
-        self.epoch_update = 2     
-        self.epoch_interval = 1
+        self.epoch_start = 25 
+        self.every_n_epoch = 5  
+        self.epoch_update = 25     
+        self.epoch_interval = 5
         self.train_val_ratio = 0.9
         self.protein2id = args.protein2id
         self.protein2ont = args.protein2ont
 
         if not os.path.exists(self.save_path):
             os.makedirs(self.save_path)
-
-        seed_everything(self.seed) 
 
 
     def train(self):
@@ -251,14 +246,13 @@ class Ecoli(MMSol_Dataset):
         A = 1/num_class*torch.ones(ntrain, num_class, num_class, requires_grad=False).float().to(device)  
         h = np.zeros([ntrain, num_class])  
         
-        # 获取标签
-        total_labels = train_dataset.get_data_labels()  # 假设这是一个包含标签的张量或列表
+        total_labels = train_dataset.get_data_labels()  
         total_samples = len(total_labels)
-        num_pos_samples = (total_labels == 1).sum().item()  # 如果是Tensor，可以直接使用.sum()
+        num_pos_samples = (total_labels == 1).sum().item() 
         num_neg_samples = (total_labels == 0).sum().item()
         
-        pos_weight = total_samples / (2 * num_pos_samples)  # 反向频率权重
-        neg_weight = total_samples / (2 * num_neg_samples)  # 反向频率权重
+        pos_weight = total_samples / (2 * num_pos_samples)  
+        neg_weight = total_samples / (2 * num_neg_samples) 
         print(f'pos_weight: {pos_weight}, neg_weight: {neg_weight}')
         weights = torch.tensor([neg_weight, pos_weight]).to(device)
         criterion_1 = nn.NLLLoss(weight=weights).to(device)  
@@ -303,14 +297,13 @@ class Ecoli(MMSol_Dataset):
                 A_new = 1/num_class*torch.ones(ntrain_new, num_class, num_class, requires_grad=False).float().to(device)
                 loop = tqdm(total=len(train_loader), leave=False)
                 
-                # 获取标签
-                total_labels_new = train_dataset_new.get_data_labels()  # 假设这是一个包含标签的张量或列表
+                total_labels_new = train_dataset_new.get_data_labels()  
                 total_samples_new = len(total_labels_new)
-                num_pos_samples_new = (total_labels_new == 1).sum().item()  # 如果是Tensor，可以直接使用.sum()
+                num_pos_samples_new = (total_labels_new == 1).sum().item()
                 num_neg_samples_new = (total_labels_new == 0).sum().item()
                 
-                pos_weight_new = total_samples_new / (2 * num_pos_samples_new)  # 反向频率权重
-                neg_weight_new = total_samples_new / (2 * num_neg_samples_new)  # 反向频率权重
+                pos_weight_new = total_samples_new / (2 * num_pos_samples_new) 
+                neg_weight_new = total_samples_new / (2 * num_neg_samples_new) 
                 
                 weights_2 = torch.tensor([neg_weight_new, pos_weight_new]).to(device)
                 criterion_2 = nn.NLLLoss(weight=weights_2).to(device)  
@@ -383,31 +376,21 @@ class Ecoli(MMSol_Dataset):
             train_acc = corrects_epoch / total_epoch
             print(f"Train Accuracy: {train_acc:.5f}")
             print(f'Epoch {epoch}, Total Training Loss: {train_loss}')
-            # print(f'outputs:{outputs}, labels:{labels}')  
 
             valid_acc, valid_f1, valid_auc, valid_precision, valid_recall, valid_mcc, val_loss = self.valid(model=model)
-            test_acc, test_f1, test_auc, test_precision, test_recall, test_mcc  = self.test(model=model)
-            # 保存对应的 R² 和 RMSE 到 txt 文件
             metrics_path = os.path.join(self.save_path, f"log.txt")
             with open(metrics_path, 'a') as f:
                 f.write(f"Epoch: {epoch} Valid ACC: {valid_acc:.5f} Valid F1: {valid_f1:.5f} Valid AUC: {valid_auc} Valid Precision: {valid_precision} Valid Recall: {valid_recall} Valid MCC: {valid_mcc}\n")
-                # f.write(f"Epoch: {epoch} Test ACC: {test_acc:.5f} Test F1: {test_f1:.5f} Test AUC: {test_auc} Test Precision: {test_precision} Test Recall: {test_recall} Test MCC: {test_mcc}\n")
-
-            # model_path = os.path.join(self.save_path, f"{epoch}_nesg_unchanged.pth")
-
-            # torch.save(model, model_path)
 
             # Save the model 
             if val_loss < best_loss:
                 best_loss = val_loss 
                 best_loss_model = model.state_dict()
 
-                # 保存模型
                 model_path = os.path.join(self.save_path, f"best_loss_model.pth")
                 torch.save(best_loss_model, model_path)
                 print(f"Best Loss model saved.")
 
-                # 保存对应的 R² 和 RMSE 到 txt 文件
                 metrics_path = os.path.join(self.save_path, f"best_loss_model.txt")
                 with open(metrics_path, 'w') as f:
                     f.write(f"Epoch: {epoch}\n")
@@ -442,6 +425,9 @@ class Ecoli(MMSol_Dataset):
                 print("Unsolved points: {} | Infeasible points: {}".format(unsolved, infeasible))
 
             if epoch >= self.epoch_update and epoch <= self.epoch_start + self.epoch_interval:  
+                '''
+                label changed
+                '''
                 y_tilde = train_dataset.get_data_labels() 
                 y_noise = train_dataset.get_data_labels_noise() 
                 pred_softlabels_bar = pred_softlabels.mean(1) 
@@ -456,10 +442,6 @@ class Ecoli(MMSol_Dataset):
     def valid(self, model=None):         
         cuda_available = torch.cuda.is_available()
         device = torch.device("cuda:0" if cuda_available else "cpu")
-
-        # model = Model()
-        # model = torch.load(self.model_path)  
-        # model = model.to(device)
         
         model.eval()
         
@@ -541,19 +523,6 @@ class Ecoli(MMSol_Dataset):
         print(f'Valid ACC raw: {acc_raw}, F-1 raw: {f1_raw}, AUC raw: {auc_raw}, Precision raw: {precision_raw}, Recall raw: {recall_raw}', 'MCC raw:', mcc_raw)
         print(f'Valid ACC: {acc}, F-1: {f1}, AUC: {test_auc}, Precision: {precision}, Recall: {recall}', 'MCC:', mcc)
         
-        # 打印正负样本预测正确的个数
-        # 统计 0.5 阈值下正负样本预测正确的个数
-        correct_pos_05 = ((predicted_array == 1) & (labels_array == 1)).sum()
-        correct_neg_05 = ((predicted_array == 0) & (labels_array == 0)).sum()
-
-        # 统计最佳阈值下正负样本预测正确的个数
-        correct_pos_best = ((p == 1) & (labels_array == 1)).sum()
-        correct_neg_best = ((p == 0) & (labels_array == 0)).sum()
-        
-        print(f'Correct positive samples raw: {correct_pos_05}')
-        print(f'Correct negative samples raw: {correct_neg_05}')
-        print(f'Correct positive samples best: {correct_pos_best}')
-        print(f'Correct negative samples best: {correct_neg_best}')
         return acc, f1, test_auc, precision, recall, mcc, val_loss
 
 
@@ -564,8 +533,19 @@ class Ecoli(MMSol_Dataset):
         # model = Model()
         # model = torch.load(self.model_path)  
         # model = model.to(device)
-        
-        model.eval()
+        # model.eval()
+
+        # -----SparseGO-----
+        protein2id_mapping = load_mapping(self.protein2id)
+        dG, terms_pairs, proteins_terms_pairs = load_ontology(self.protein2ont, protein2id_mapping)
+        sorted_pairs, level_list, level_number = sort_pairs(
+            proteins_terms_pairs, terms_pairs, dG, protein2id_mapping)
+        layer_connections = pairs_in_layers(sorted_pairs, level_list, level_number)  
+
+        # -----Model Define----- 
+        model = Model(layer_connections=layer_connections)
+        model.load_state_dict(torch.load(self.model_path))  
+        model = model.to(device)
         
         # -----dataset-----
 
@@ -638,19 +618,6 @@ class Ecoli(MMSol_Dataset):
         print(f'Test ACC raw: {acc_raw}, F-1 raw: {f1_raw}, AUC raw: {auc_raw}, Precision raw: {precision_raw}, Recall raw: {recall_raw}', 'MCC raw:', mcc_raw)
         print(f'Test ACC: {acc}, F-1: {f1}, AUC: {test_auc}, Precision: {precision}, Recall: {recall}', 'MCC:', mcc)
         
-        # 打印正负样本预测正确的个数
-        # 统计 0.5 阈值下正负样本预测正确的个数
-        correct_pos_05 = ((predicted_array == 1) & (labels_array == 1)).sum()
-        correct_neg_05 = ((predicted_array == 0) & (labels_array == 0)).sum()
-
-        # 统计最佳阈值下正负样本预测正确的个数
-        correct_pos_best = ((p == 1) & (labels_array == 1)).sum()
-        correct_neg_best = ((p == 0) & (labels_array == 0)).sum()
-        
-        print(f'Correct positive samples raw: {correct_pos_05}')
-        print(f'Correct negative samples raw: {correct_neg_05}')
-        print(f'Correct positive samples best: {correct_pos_best}')
-        print(f'Correct negative samples best: {correct_neg_best}')
         return acc, f1, test_auc, precision, recall, mcc
 
 

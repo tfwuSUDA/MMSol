@@ -18,7 +18,6 @@ protein2ont = './data/noise_free/eSOL_go/train_total.txt'
 
 max_pad_len = 200  
 
-model_path = './Most accurate models/SolLRT_eSOL/reg_total_400_0.211_0.564.pth'
-last_model_path = './Most accurate models/last_model.pth'
+model_path = './Best_ckpt/noise_free_reg.pth'
 save_path = './lib_output/noise_free_reg/'
 

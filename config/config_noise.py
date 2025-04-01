@@ -9,7 +9,7 @@ num_workers = 4
 
 weight_decay = 0.001  
 
-gpu = 0  # 使用的gpu编号
+gpu = 0  
 
 train_dataset_path = './data/noise/train.fasta'
 valid_dataset_path = './data/noise/valid.fasta'
@@ -21,7 +21,5 @@ protein2ont = './data/noise/noise_go/noise_total.txt'
 
 max_pad_len = 400  
 
-# model_path = './Most accurate models/last_model.pth'
-model_path = './Most accurate models/last_model.pth'
-last_model_path = './Most accurate models/last_model.pth'
+model_path = './Best_ckpt/noise.pth'
 save_path = './lib_output/noise_cls/'

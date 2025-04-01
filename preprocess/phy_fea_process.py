@@ -43,7 +43,7 @@ def biopython_12(input_file=None):
     with open('example.csv', "w",newline="") as csv_out:
         csv_wr = csv.DictWriter(csv_out, fieldnames=features)
         csv_wr.writeheader()
-        for seq in SeqIO.parse('.\data\E.coli\nesg_3100\E.coli_3100_0.1.fasta', "fasta"):
+        for seq in SeqIO.parse('.\data\noise_free\eSOL_train_cls.fasta', "fasta"):
             row = dict.fromkeys(features)  
             description_parts = seq.description.split()
             row['sid'] = description_parts[0][1:]  
@@ -107,9 +107,8 @@ def physico_chemical(fa_path, f_csv,scale_name,w,xx):
             if not check_seq(seq.seq):
                 continue
             row = dict.fromkeys(features)
-            # 分割描述行，提取出'label'、'label_noise'和'sid'的值
             description_parts = seq.description.split()
-            row['sid'] = description_parts[0][1:]  # 去掉开头的'>'
+            row['sid'] = description_parts[0][1:]  
             for part in description_parts[1:]:
                 if part.startswith('label='):
                     row['label'] = int(part.split('=')[1])
@@ -133,4 +132,4 @@ def scale_main(input_file):
         i=i+1
 
 biopython_12()
-scale_main("test_set_nesg_3100.fasta")
+scale_main("eSOL_train_cls.fasta")

@@ -63,7 +63,6 @@ class Ecoli(MMSol_Dataset):
         device = torch.device("cuda:0" if cuda_available else "cpu")
 
         # -----SparceGO-----
-        
         protein2id_mapping = load_mapping(self.protein2id)
         dG, terms_pairs, proteins_terms_pairs = load_ontology(self.protein2ont, protein2id_mapping)
         sorted_pairs, level_list, level_number = sort_pairs(
@@ -75,8 +74,8 @@ class Ecoli(MMSol_Dataset):
         # print(model)
 
         model = model.to(device)
+        
         # -----Dataset-----
-                
         train_dataset = MMSol_Dataset(self.train_dataset, max_pad_len=self.max_pad_len, 
                                       edge_fea_path='./data/noise_free/eSOL_edge/train_LPE_5_1.pkl', 
                                       node_fea_path='./data/noise_free/eSOL_edge/train_node.pkl', 
@@ -93,10 +92,6 @@ class Ecoli(MMSol_Dataset):
             model.train()
 
             train_loss = 0
-            corrects_epoch = 0  
-            total_epoch = 0 
-            total_squared_error = 0  # 用于累积平方误差计算RMSE
-            total_samples = 0  # 用于计算加权平均 
 
             loop = tqdm(total=len(train_loader), leave=False)
 
@@ -147,8 +142,6 @@ class Ecoli(MMSol_Dataset):
             train_rmse = np.sqrt(mean_squared_error(all_labels, all_preds))
             print(f"Train R2: {train_r2:.5f}")
             print(f"Train RMSE: {train_rmse:.5f}")
-            # print(f'outputs:{outputs}, labels:{labels}')  
-            # test_r2, test_rmse  = self.test(model=model)
                 
         model_path = os.path.join(self.save_path, f"{epoch}_eSOL_reg.pth")
         torch.save(model, model_path)
@@ -297,7 +290,6 @@ class Ecoli(MMSol_Dataset):
 
                 print(f'Valid R2: {val_r2:.5f}, RMSE: {val_rmse:.5f}')
 
-                # 保存对应的 R² 和 RMSE 到 txt 文件
                 metrics_path = os.path.join(self.save_path, f"loss_model_fold_{fold+1}.txt")
                 with open(metrics_path, 'a') as f:
                     f.write(f"Epoch: {epoch} Valid R2: {val_r2:.5f} Valid RMSE: {val_rmse:.5f} Valid Loss: {val_loss} Train Loss: {train_loss}\n")
@@ -307,12 +299,10 @@ class Ecoli(MMSol_Dataset):
                     best_rmse = val_rmse
                     best_rmse_model = model.state_dict()
 
-                    # 保存模型
                     model_path = os.path.join(self.save_path, f"best_rmse_model_fold_{fold+1}.pth")
                     torch.save(best_rmse_model, model_path)
                     print(f"Best RMSE model for fold {fold+1} saved.")
 
-                    # 保存对应的 R² 和 RMSE 到 txt 文件
                     metrics_path = os.path.join(self.save_path, f"best_rmse_model_fold_{fold+1}.txt")
                     with open(metrics_path, 'w') as f:
                         f.write(f"Epoch: {epoch}\n")
@@ -322,45 +312,40 @@ class Ecoli(MMSol_Dataset):
                 if val_loss / len(val_loader) < best_loss:
                     best_loss = val_loss / len(val_loader)
                     best_loss_model = model.state_dict()
-                    best_loss_epoch = epoch
 
-                    # 保存模型
                     model_path = os.path.join(self.save_path, f"best_loss_model_fold_{fold+1}.pth")
                     torch.save(best_loss_model, model_path)
                     print(f"Best Loss model for fold {fold+1} saved.")
 
-                    # 保存对应的 R² 和 RMSE 到 txt 文件
                     metrics_path = os.path.join(self.save_path, f"best_loss_model_fold_{fold+1}.txt")
                     with open(metrics_path, 'w') as f:
                         f.write(f"Epoch: {epoch}\n")
                         f.write(f"Valid R2: {val_r2:.5f}\n")
                         f.write(f"Valid RMSE: {val_rmse:.5f}\n")
-                
-                test_r2, test_rmse = self.test(model=model)
     
     def test(self, model=None):         
         cuda_available = torch.cuda.is_available()
         device = torch.device("cuda:0" if cuda_available else "cpu")
 
         # model = Model_GO()
-        # model = torch.load(self.model_path)  # 加载训练好的模型，该函数加载的是整个模型，包括模型的参数和模型的结构
+        # model = torch.load(self.model_path)  
         # model = model.to(device)
         
-        # # -----SparseGO-----
-        # protein2id_mapping = load_mapping(self.protein2id)
-        # dG, terms_pairs, proteins_terms_pairs = load_ontology(self.protein2ont, protein2id_mapping)
-        # sorted_pairs, level_list, level_number = sort_pairs(
-        #     proteins_terms_pairs, terms_pairs, dG, protein2id_mapping)
-        # layer_connections = pairs_in_layers(sorted_pairs, level_list, level_number)  
+        # -----SparseGO-----
+        protein2id_mapping = load_mapping(self.protein2id)
+        dG, terms_pairs, proteins_terms_pairs = load_ontology(self.protein2ont, protein2id_mapping)
+        sorted_pairs, level_list, level_number = sort_pairs(
+            proteins_terms_pairs, terms_pairs, dG, protein2id_mapping)
+        layer_connections = pairs_in_layers(sorted_pairs, level_list, level_number)  
 
-        # # -----Model Define----- 
-        # model = Model(layer_connections=layer_connections)
-        # model.load_state_dict(torch.load(self.model_path))  # 加载权重
-        # model = model.to(device)
+        # -----Model Define----- 
+        model = Model(layer_connections=layer_connections)
+        model.load_state_dict(torch.load(self.model_path))  
+        model = model.to(device)
         
         model.eval()
         
-        # -----读取数据集-----
+        # -----Dataset-----
         test_dataset = MMSol_Dataset(self.test_dataset, max_pad_len=self.max_pad_len, 
                                      edge_fea_path='./data/noise_free/eSOL_edge/test_LPE_5_1.pkl', 
                                      node_fea_path='./data/noise_free/eSOL_edge/test_node.pkl', 
@@ -377,12 +362,11 @@ class Ecoli(MMSol_Dataset):
                 
                 id, inputs, attention_ids, feature, GO_fea, labels_cpu, label_noise, sequences_feature, sequences_mask, graph_feature, graph_mask, softlabels, index = data
                     
-                # 将每个数据移动到适当的设备
                 inputs = inputs.to(device)
                 attention_ids = attention_ids.to(device)
                 feature = feature.to(device)
                 GO_fea = GO_fea.to(device)
-                labels = labels_cpu.to(device).float()  # 转换为浮点型
+                labels = labels_cpu.to(device).float()  
                 sequences_feature = sequences_feature.to(device)
                 sequences_mask = sequences_mask.to(device)
                 graph_feature = graph_feature.to(device)
@@ -394,11 +378,9 @@ class Ecoli(MMSol_Dataset):
                 predicted_list += outputs.cpu().numpy().tolist()
                 labels_list += labels.cpu().numpy().tolist()
                 
-        # 将predicted_list和labels_list转换为numpy数组
         predicted_array = np.array(predicted_list)
         labels_array = np.array(labels_list)
 
-        # 计算 R² 和 RMSE
         r2 = r2_score(labels_array, predicted_array)
         rmse = np.sqrt(mean_squared_error(labels_array, predicted_array))
 
@@ -409,5 +391,6 @@ class Ecoli(MMSol_Dataset):
 if __name__ == '__main__':
     my_lib = Ecoli()
     my_lib.train_cv()
-    # my_lib.test()
     # my_lib.train_total()
+    # my_lib.test()
+

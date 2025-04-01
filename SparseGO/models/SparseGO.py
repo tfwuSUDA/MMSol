@@ -1,3 +1,7 @@
+'''
+This code is from https://github.com/KatynaSada/SparseGO
+'''
+
 import math
 import warnings
 import numpy as np

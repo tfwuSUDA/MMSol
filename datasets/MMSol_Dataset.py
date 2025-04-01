@@ -171,7 +171,7 @@ class MMSol_Dataset(Dataset):
         inputs = self.tokenizer(sequence, return_tensors="pt", max_length=self.max_pad_length, truncation=True, padding='max_length')
         label = self.y[idx]
         label_noise = self.y_noise[idx]
-        feature = self.feature[idx]  # 全局特征
+        feature = self.feature[idx] 
         softlabel = self.softlabel[idx]
 
         if id in self.GO_fea:
@@ -190,7 +190,6 @@ class MMSol_Dataset(Dataset):
 
         pattern = re.compile(r'label=(\d+) label_noise=(\d+) feature=\[([^\]]+)\] GO=\[([^\]]+)\]')
 
-        # 用于存储提取的信息的列表
         data_source = []
         sequences = []
         label_tag = []
@@ -252,11 +251,9 @@ class MMSol_Dataset(Dataset):
 
 class MMSol_Dataset_Subset(MMSol_Dataset):
     def __init__(self, dataset, indices):
-        # 直接使用原始数据集的属性
         self.dataset = dataset
         self.indices = indices
         
-        # 确保传递给父类需要的参数
         self.max_pad_length = dataset.max_pad_length
         self.pdb_dir = dataset.pdb_dir
         self.tokenizer = dataset.tokenizer
@@ -269,7 +266,6 @@ class MMSol_Dataset_Subset(MMSol_Dataset):
         self.dismatrix = dataset.dismatrix
         self.node_fea = dataset.node_fea
         
-        # 保持对索引切分数据的引用
         self.subset_data = {
             'id': dataset.id[self.indices],
             'x': dataset.x[self.indices],
@@ -285,27 +281,12 @@ class MMSol_Dataset_Subset(MMSol_Dataset):
         
 
     def __len__(self):
-        # 通过 indices 返回子集的长度
         return len(self.indices)
 
     def __getitem__(self, idx):
-        # 使用传入的索引来访问数据集
         actual_idx = self.indices[idx]
         return self.dataset[actual_idx]
 
-    # # 保留原数据集的标签获取方法，并且这些方法现在会操作基于 `indices` 的数据
-    # def get_data_labels(self):
-    #     return self.dataset.get_data_labels()[self.indices]
-
-    # def get_data_labels_noise(self):
-    #     return self.dataset.get_data_labels_noise()[self.indices]
-
-    # def get_data_softlabel(self):
-    #     return self.dataset.get_data_softlabel()[self.indices]
-
-    # def get_data_source(self):
-    #     return self.dataset.get_data_source()[self.indices]
-    # 保留原数据集的标签获取方法，但这些方法操作的是切分后的数据
     def get_data_labels(self):
         return self.subset_data['y']
 
@@ -318,17 +299,13 @@ class MMSol_Dataset_Subset(MMSol_Dataset):
     def get_data_source(self):
         return self.subset_data['x']
 
-    # 更新方法，确保这些更新只作用于子集的数据
     def update_corrupted_softlabel(self, clean_softlabels):
-        # 只更新子集的数据
         self.subset_data['softlabel'][:] = clean_softlabels
 
     def update_corrupted_label(self, clean_labels):
-        # 只更新子集的数据
         self.subset_data['y'][:] = clean_labels
 
     def update_corrupted_label_noise(self, updated_noises):
-        # 只更新子集的数据
         self.subset_data['y_noise'][:] = updated_noises
 
     
