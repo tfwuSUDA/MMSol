@@ -6,122 +6,22 @@ import torch
 import numpy as np
 import pandas as pd
 from torch.utils.data import Dataset
-
 from scipy.spatial import distance
 from scipy.sparse import coo_matrix
 from Bio import SeqIO
 from transformers import AutoTokenizer
 
-# path
-
 amino_acid = list("ACDEFGHIKLMNPQRSTVWYX")
 amino_dict = {aa: i for i, aa in enumerate(amino_acid)}
 
-# Model parameters
-NUMBER_EPOCHS = 25
-LEARNING_RATE = 1E-4
-WEIGHT_DECAY = 1E-4
-BATCH_SIZE = 1
-NUM_CLASSES = 1
-
-# GCN parameters
-GCN_FEATURE_DIM = 91
-GCN_HIDDEN_DIM = 256
-GCN_OUTPUT_DIM = 64
-
-# Attention parameters
-DENSE_DIM = 16
-ATTENTION_HEADS = 4
-
 PRETRAIN_MODEL_PATH = './models/Protein_LLM/esm2_t6_8M_UR50D'
 
-
-def normalize(mx):
-    rowsum = np.array(mx.sum(1))
-    r_inv = (rowsum ** -0.5).flatten()
-    r_inv[np.isinf(r_inv)] = 0
-    r_mat_inv = np.diag(r_inv)
-    result = r_mat_inv @ mx @ r_mat_inv
-    return result
-
-
-def get_edge_index(pdbdir,EPSILON = 8.):
-    pdb = open(pdbdir,"r")
-    atom_coordinate = []
-    i = 0
-    for row in pdb.readlines():
-        row = re.sub(r'(\.\d{3})', r'\1   ', row) 
-        col = row.split()
-        if col[0] == "MODEL" and col[1] != "1":
-            break
-        if col[0] == "ATOM":
-            if col[2] == "CA":
-                try:
-                    atom_coordinate.append((float(col[6]),float(col[7]),float(col[8])))
-                except Exception:
-                    print(pdbdir)
-                    break
-    dismatrix = []
-    for rowa in range(len(atom_coordinate)):
-        tempdis = []
-        for rowb in range(len(atom_coordinate)):
-            atoma = (atom_coordinate[rowa][0],atom_coordinate[rowa][1],atom_coordinate[rowa][2])
-            atomb = (atom_coordinate[rowb][0],atom_coordinate[rowb][1],atom_coordinate[rowb][2])
-            dis = distance.euclidean(atoma,atomb)
-            if dis == 0.:
-                tempdis.append(0)
-            elif dis <= EPSILON:
-                tempdis.append(round(float(dis),3))
-            elif dis > EPSILON:
-                tempdis.append(0)
-        dismatrix.append(tempdis)
-    dismatrix = np.where(np.array(dismatrix), 1, 0)
-    contactmatrix = coo_matrix(dismatrix)
-    edge_index = torch.LongTensor(np.vstack((contactmatrix.row,contactmatrix.col)))
-    return dismatrix, edge_index
-
-
-def load_features(sequence):
-    blosum = np.array([blosum_dict[amino] for amino in sequence])
-    aaphy7 = np.array([aaphy7_dict[amino] for amino in sequence])
-    feature_matrix = np.concatenate([blosum, aaphy7], axis=1)
-    
-    return feature_matrix
-
-
-def load_graph(sequence_name):
-    matrix = np.load('./lib/edge_features' + sequence_name + '.npy').astype(np.float32)
-    matrix = normalize(matrix)
-    return matrix
-
-def load_blosum():
-    with open('./fea_data/BLOSUM62_dim23.txt', 'r') as f:
-        result = {}
-        next(f)
-        lines = f.readlines()
-        for line in lines:
-            line = line.strip().split()
-            result[line[0]] = [int(i) for i in line[1:]]
-    return result
-
-def load_aaphy7():
-    with open('./fea_data/aa_phy7', 'r') as f:
-        result = dict()
-        lines = f.readlines()
-        for line in lines:
-            line = line.strip().split()
-            result[line[0]] = [float(i) for i in line[1:]]
-    return result
-
-blosum_dict = load_blosum()
-aaphy7_dict = load_aaphy7()
 
 class MMSol_Dataset(Dataset):       
 
     def __init__(self, file_path1, max_pad_len, edge_fea_path, node_fea_path, GO_fea_path):
         super().__init__()
         eps = 0.001
-        self.blosum = load_blosum()
         self.pdb_dir = edge_fea_path
         self.max_pad_length = max_pad_len
         self.tokenizer = AutoTokenizer.from_pretrained(PRETRAIN_MODEL_PATH)
@@ -307,11 +207,6 @@ class MMSol_Dataset_Subset(MMSol_Dataset):
 
     def update_corrupted_label_noise(self, updated_noises):
         self.subset_data['y_noise'][:] = updated_noises
-
-    
-
-
-
 
 
 def collate_fn(batch):

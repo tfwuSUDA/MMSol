@@ -4,12 +4,12 @@ import torch.nn as nn
 import torch.optim as optim
 from sklearn.metrics import r2_score, mean_squared_error
 
-from lib.MMSol_Dataset_noise_free_reg import MMSol_Dataset, collate_fn
-from SparseGO.utils_conform import *
+from datasets.MMSol_Dataset_noise_free_reg import MMSol_Dataset, collate_fn
+from utils.SparseGO.utils_conform import *
 from models.MMSol_reg import Model
 from models.MMSol_reg import *
 from torch.utils.data import DataLoader, Subset
-from config import config_noise_free_reg
+from configs import config_noise_free_reg
 
 from tqdm import tqdm
 import argparse
@@ -28,7 +28,6 @@ parser.add_argument('--num_workers', default=config_noise_free_reg.num_workers, 
 parser.add_argument('--weight_decay', default=config_noise_free_reg.weight_decay, type=float, help='Weight decay for optimizer')
 parser.add_argument('--gpu', default=config_noise_free_reg.gpu, type=int, help='GPU number')
 parser.add_argument('--train_dataset_path', default=config_noise_free_reg.train_dataset_path, type=str, help='Path for train dataset')
-parser.add_argument('--test_dataset_path', default=config_noise_free_reg.test_dataset_path, type=str, help='Path for test dataset')
 parser.add_argument('--max_pad_len', default=config_noise_free_reg.max_pad_len, type=int, help='Max pad length for sequence')
 parser.add_argument('--model_path', default=config_noise_free_reg.model_path, type=str, help='Path for model')
 parser.add_argument('--save_path', default=config_noise_free_reg.save_path, type=str, help='Path for save the best model')
@@ -46,7 +45,6 @@ class Ecoli(MMSol_Dataset):
         self.batch_size = args.batch_size
         self.lr = args.lr
         self.train_dataset  = args.train_dataset_path
-        self.test_dataset = args.test_dataset_path
         self.model_path = args.model_path
         self.seed = args.seed
         self.num_workers = args.num_workers  
@@ -77,9 +75,9 @@ class Ecoli(MMSol_Dataset):
         
         # -----Dataset-----
         train_dataset = MMSol_Dataset(self.train_dataset, max_pad_len=self.max_pad_len, 
-                                      edge_fea_path='./data/noise_free/eSOL_edge/train_LPE_5_1.pkl', 
-                                      node_fea_path='./data/noise_free/eSOL_edge/train_node.pkl', 
-                                      GO_fea_path='./data/noise_free/eSOL_go/train_go.pkl')
+                                      edge_fea_path='./data/noise_free/noise_free_graph/train_LPE_5_1.pkl', 
+                                      node_fea_path='./data/noise_free/noise_free_graph/train_node.pkl', 
+                                      GO_fea_path='./data/noise_free/noise_free_go/train_go.pkl')
         train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True, 
                                   num_workers=self.num_workers, collate_fn=collate_fn)
                 
@@ -152,9 +150,9 @@ class Ecoli(MMSol_Dataset):
 
         # -----Dataset-----
         train_dataset = MMSol_Dataset(self.train_dataset, max_pad_len=self.max_pad_len, 
-                                      edge_fea_path='./data/noise_free/eSOL_edge/train_LPE_5_1.pkl', 
-                                      node_fea_path='./data/noise_free/eSOL_edge/train_node.pkl', 
-                                      GO_fea_path='./data/noise_free/eSOL_go/train_go.pkl')
+                                      edge_fea_path='./data/noise_free/noise_free_graph/train_LPE_5_1.pkl', 
+                                      node_fea_path='./data/noise_free/noise_free_graph/train_node.pkl', 
+                                      GO_fea_path='./data/noise_free/noise_free_go/train_go.pkl')
 
         # -----Cross-validation Setup-----
         kfold = KFold(n_splits=5, shuffle=True, random_state=2333)
@@ -323,74 +321,8 @@ class Ecoli(MMSol_Dataset):
                         f.write(f"Valid R2: {val_r2:.5f}\n")
                         f.write(f"Valid RMSE: {val_rmse:.5f}\n")
     
-    def test(self, model=None):         
-        cuda_available = torch.cuda.is_available()
-        device = torch.device("cuda:0" if cuda_available else "cpu")
-
-        # model = Model_GO()
-        # model = torch.load(self.model_path)  
-        # model = model.to(device)
-        
-        # -----SparseGO-----
-        protein2id_mapping = load_mapping(self.protein2id)
-        dG, terms_pairs, proteins_terms_pairs = load_ontology(self.protein2ont, protein2id_mapping)
-        sorted_pairs, level_list, level_number = sort_pairs(
-            proteins_terms_pairs, terms_pairs, dG, protein2id_mapping)
-        layer_connections = pairs_in_layers(sorted_pairs, level_list, level_number)  
-
-        # -----Model Define----- 
-        model = Model(layer_connections=layer_connections)
-        model.load_state_dict(torch.load(self.model_path))  
-        model = model.to(device)
-        
-        model.eval()
-        
-        # -----Dataset-----
-        test_dataset = MMSol_Dataset(self.test_dataset, max_pad_len=self.max_pad_len, 
-                                     edge_fea_path='./data/noise_free/eSOL_edge/test_LPE_5_1.pkl', 
-                                     node_fea_path='./data/noise_free/eSOL_edge/test_node.pkl', 
-                                     GO_fea_path='./data/noise_free/eSOL_go/test_go.pkl')
-        test_loader = DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers, collate_fn=collate_fn)
-
-        predicted_list = []
-        labels_list = []
-        sample_ids = []
-
-        loop = tqdm(test_loader)
-        with torch.no_grad():
-            for i, data in enumerate(loop, 0):
-                
-                id, inputs, attention_ids, feature, GO_fea, labels_cpu, label_noise, sequences_feature, sequences_mask, graph_feature, graph_mask, softlabels, index = data
-                    
-                inputs = inputs.to(device)
-                attention_ids = attention_ids.to(device)
-                feature = feature.to(device)
-                GO_fea = GO_fea.to(device)
-                labels = labels_cpu.to(device).float()  
-                sequences_feature = sequences_feature.to(device)
-                sequences_mask = sequences_mask.to(device)
-                graph_feature = graph_feature.to(device)
-                graph_mask = graph_mask.to(device)
-
-                outputs = model(inputs, attention_ids, feature, GO_fea, sequences_feature, graph_feature, sequences_mask, graph_mask)
-                
-                sample_ids += list(id)
-                predicted_list += outputs.cpu().numpy().tolist()
-                labels_list += labels.cpu().numpy().tolist()
-                
-        predicted_array = np.array(predicted_list)
-        labels_array = np.array(labels_list)
-
-        r2 = r2_score(labels_array, predicted_array)
-        rmse = np.sqrt(mean_squared_error(labels_array, predicted_array))
-
-        print(f'Test R²: {r2:.5f}, RMSE: {rmse:.5f}')
-
-        return r2, rmse
-    
 if __name__ == '__main__':
     my_lib = Ecoli()
-    my_lib.train_cv()
-    # my_lib.train_total()
-    # my_lib.test()
+    # my_lib.train_cv()
+    my_lib.train_total()
 

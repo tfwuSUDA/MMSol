@@ -11,15 +11,33 @@ In the empirical study, we evaluate our model on both noise-free and noisy datas
 
 ---
 
+## Installation
+
+### Create the conda environment and activate it.
+
+```bash
+conda create -n mmsol python==3.10
+conda activate mmsol
+```
+
+### Install basic packages
+```bash
+# install requirements
+pip install -r requirements.txt
+
+pip install biopython
+```
+
+
 ## Dataset Preparation
 
-Please download the required .pkl files (for node features, edge features, GO features, etc.) from the following address:
+Please download the required .pkl files (for node features, edge features, GO features, etc.) from the following address:https://zenodo.org/records/15117305
 
 Download and extract the files under the ./data/ directory, following this structure:
   ./data/
     noise_free/
         eSOL_edge/
-            eSOL_train_LPE_head_5_1.pkl
+            noise_free_train_LPE_5_1.pkl
         eSOL_go/
             train_go.pkl
         ...
@@ -36,21 +54,35 @@ Download and extract the files under the ./data/ directory, following this struc
 - **Classification Task**
 
   To train a classification model in a noise-free setting:
-  ```bash
+```bash
   python train_noise_free.py
-
+```
+  To test:
+```bash
+  python test_noise_free.py
+```
 - **Regression Task**
 
   To train a regression model in a noise-free setting:
-  ```bash
+```bash
   python train_noise_free_reg.py
-
+```
+  To test:
+```bash
+  python test_noise_free_reg.py
+```
 ###  Noise Environment
 
 - **Classification Task**
 
   To train a classification model in a noise setting:
-  ```bash
+```bash
   python train_noise.py
+```
+  To test:
+```bash
+  python test_noise.py
+```
+
 
 
