@@ -31,7 +31,7 @@ pip install biopython
 
 ## Dataset Preparation
 
-Please download the required .pkl files (for node features, edge features, GO features, etc.) from the following address:https://zenodo.org/records/15117305
+Please download the required .pkl files (for node features, edge features, GO features, etc.) from the following address: https://zenodo.org/records/15123092
 
 Download and extract the files under the ./data/ directory, following this structure:
   ./data/
